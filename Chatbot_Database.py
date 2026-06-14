@@ -1,54 +1,87 @@
 import sqlite3
 import json
+import glob
+import sys
 
-# Crear/conectar a la base de datos
-conn = sqlite3.connect("dialogos.db")
-c = conn.cursor()
+# LIMITE DE REGISTROS
+MAX_REGISTROS = 250000
 
-# Eliminar tabla si ya existe
-c.execute("DROP TABLE IF EXISTS dialogos")
+RUTA_JSON = r"C:\Users\riost\OneDrive\Desktop\Proyecto IA\Base de datos\**\*.jsonl"
 
-# Crear tabla
-c.execute("""
-CREATE TABLE dialogos (
+conexion = sqlite3.connect("chatbot.db")
+cursor = conexion.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS dialogos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    conversacion INTEGER,
-    orden INTEGER,
-    texto TEXT
+    pregunta TEXT,
+    respuesta TEXT
 )
 """)
 
-# Leer archivo JSONL
-with open(
-    r"C:/Users/riost/OneDrive/Desktop/Proyecto IA/Base de datos/0/1956972100.jsonl",
-    "r",
-    encoding="utf-8"
-) as f:
+archivos = glob.glob(RUTA_JSON, recursive=True)
 
-    num_conversacion = 1
+print("Archivos encontrados:", len(archivos))
 
-    for linea in f:
+contador = 0
 
-        linea = linea.strip()
+for archivo in archivos:
 
-        if not linea:
-            continue
+    try:
 
-        registro = json.loads(linea)
+        with open(archivo, "r", encoding="utf8") as f:
 
-        dialogos = registro.get("dialogues", [])
+            for linea in f:
 
-        for orden, texto in enumerate(dialogos):
+                data = json.loads(linea)
 
-            c.execute("""
-                INSERT INTO dialogos
-                (conversacion, orden, texto)
-                VALUES (?, ?, ?)
-            """, (num_conversacion, orden, texto))
+                if "dialogues" not in data:
+                    continue
 
-        num_conversacion += 1
+                for dialogo in data["dialogues"]:
 
-conn.commit()
-conn.close()
+                    frases = [
+                        x.strip()
+                        for x in dialogo.split("\n")
+                        if x.strip()
+                    ]
 
-print("Base de datos creada correctamente.")
+                    for i in range(len(frases)-1):
+
+                        pregunta = frases[i]
+                        respuesta = frases[i+1]
+
+                        cursor.execute(
+                            """
+                            INSERT INTO dialogos
+                            (pregunta,respuesta)
+                            VALUES (?,?)
+                            """,
+                            (pregunta,respuesta)
+                        )
+
+                        contador += 1
+
+                        if contador % 10000 == 0:
+                            conexion.commit()
+                            print("Guardados:", contador)
+
+                        if contador >= MAX_REGISTROS:
+
+                            conexion.commit()
+                            conexion.close()
+
+                            print()
+                            print("Límite alcanzado")
+                            print("Total registros:", contador)
+
+                            sys.exit()
+
+    except Exception:
+        pass
+
+conexion.commit()
+conexion.close()
+
+print()
+print("Total registros:", contador)

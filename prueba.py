@@ -1,11 +1,28 @@
-import sqlite3
+import joblib
 
-conn = sqlite3.connect("dialogos.db")
-c = conn.cursor()
+datos = joblib.load("datos.pkl")
+import joblib
+from sklearn.metrics.pairwise import cosine_similarity
 
-c.execute("PRAGMA table_info(dialogos)")
+vectorizer = joblib.load("vectorizer.pkl")
+tfidf_matrix = joblib.load("tfidf_matrix.pkl")
+datos = joblib.load("datos.pkl")
 
-for columna in c.fetchall():
-    print(columna)
+pregunta = "hola"
 
-conn.close()
+pregunta_vector = vectorizer.transform([pregunta])
+
+similitudes = cosine_similarity(
+    pregunta_vector,
+    tfidf_matrix
+)
+
+print("Forma:", similitudes.shape)
+print("Mayor similitud:", similitudes.max())
+
+indice = similitudes.argmax()
+
+print("Indice:", indice)
+
+print("Respuesta:")
+print(datos.iloc[indice]["respuesta"])

@@ -1,51 +1,36 @@
 import sqlite3
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+import joblib
 
-conn = sqlite3.connect("dialogos.db")
-c = conn.cursor()
+print("Cargando base de datos...")
 
-with open("train.from", "w", encoding="utf8") as f_from, \
-     open("train.to", "w", encoding="utf8") as f_to, \
-     open("test.from", "w", encoding="utf8") as test_from, \
-     open("test.to", "w", encoding="utf8") as test_to:
+conexion = sqlite3.connect("chatbot.db")
 
-    conversaciones = c.execute("""
-        SELECT DISTINCT conversacion
-        FROM dialogos
-        ORDER BY conversacion
-    """).fetchall()
+df = pd.read_sql_query(
+    "SELECT pregunta, respuesta FROM dialogos",
+    conexion
+)
 
-    primera_conversacion = True
+conexion.close()
 
-    for conv in conversaciones:
+print("Registros cargados:", len(df))
 
-        conv_id = conv[0]
+vectorizer = TfidfVectorizer(
+    lowercase=True,
+    max_features=30000,
+    stop_words=None
+)
 
-        filas = c.execute("""
-            SELECT texto
-            FROM dialogos
-            WHERE conversacion = ?
-            ORDER BY orden
-        """, (conv_id,)).fetchall()
+print("Creando matriz TF-IDF...")
 
-        textos = [fila[0].strip() for fila in filas]
+tfidf_matrix = vectorizer.fit_transform(df["pregunta"])
 
-        if len(textos) < 2:
-            continue
+joblib.dump(vectorizer, "vectorizer.pkl")
+joblib.dump(tfidf_matrix, "tfidf_matrix.pkl")
+joblib.dump(df, "datos.pkl")
 
-        for i in range(len(textos) - 1):
-
-            entrada = textos[i]
-            salida = textos[i + 1]
-
-            if primera_conversacion:
-                test_from.write(entrada + "\n")
-                test_to.write(salida + "\n")
-            else:
-                f_from.write(entrada + "\n")
-                f_to.write(salida + "\n")
-
-        primera_conversacion = False
-
-conn.close()
-
-print("Archivos de entrenamiento generados.")
+print()
+print("Vectorización completada")
+print("Preguntas:", len(df))
+print("Vocabulario:", len(vectorizer.vocabulary_))
